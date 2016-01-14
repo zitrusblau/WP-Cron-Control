@@ -1,9 +1,9 @@
 <?php
 /*
- Plugin Name: WP-Cron Control
- Plugin URI: https://wordpress.org/plugins/wp-cron-control/
+ Plugin Name: Zitrusblau WP-Cron Control
+ Plugin URI: http://wordpress.org/extend/plugins/wp-cron-control/
  Description: Take control of wp-cron execution.
- Author: Thorsten Ott, Erick Hitter, Automattic
+ Author: Thorsten Ott, Erick Hitter, Automattic, Stefan Naerger
  Version: 0.7.1
  Text Domain: wp-cron-control
  */
@@ -95,8 +95,9 @@ class WP_Cron_Control {
 		self::instance()->settings_page_name = sprintf( __( '%s Settings', 'wp-cron-control' ), self::instance()->plugin_name );
 
 		if ( 1 == self::instance()->settings['enable'] ) {
+				self::instance()->prepare();
 		}
-		self::instance()->prepare();
+
 	}
 
 	/*
@@ -127,8 +128,12 @@ class WP_Cron_Control {
 		 */
 		if ( 1 == $this->settings['enable'] ) {
 			remove_action( 'init', 'wp_cron' );
-			add_action( 'init', array( &$this, 'validate_cron_request' ) );
+			add_action( 'init', array( 'WP_Cron_Control', 'validate_cron_request' ) );
 		}
+
+	}
+
+	public static function test() {
 
 	}
 
@@ -266,14 +271,16 @@ class WP_Cron_Control {
 	/**
 	 * Alternative function to the current wp_cron function that would usually executed on sanitize_comment_cookies
 	 */
-	public function validate_cron_request() {
+	public static function validate_cron_request() {
+
 		// make sure we're in wp-cron.php
-		if ( false !== strpos( $_SERVER['REQUEST_URI'], '/wp-cron.php' ) ) {
+		if ( strpos( $_SERVER['REQUEST_URI'], '/wp-cron.php' ) ) {
+
 			// grab the necessary secret string
 			if ( defined( 'WP_CRON_CONTROL_SECRET' ) )
 				$secret = WP_CRON_CONTROL_SECRET;
 			else
-				$secret = $this->settings['secret_string'];
+				$secret = self::instance()->settings['secret_string'];
 
 			// make sure a secret string is provided in the ur
 			if ( isset( $_GET[$secret] ) ) {
@@ -306,25 +313,27 @@ class WP_Cron_Control {
 
 				// if settings allow it validate if there are any scheduled posts without a cron event
 				if ( 1 == self::instance()->settings['enable_scheduled_post_validation'] ) {
-					$this->validate_scheduled_posts();
+					self::instance()->validate_scheduled_posts();
 				}
+
+				// for all other cases disable wp-cron.php and spawn_cron() by telling the system it's already running
+				if ( !defined( 'DOING_CRON' ) )
+					define( 'DOING_CRON', true );
+
 				return true;
 			}
 			// something went wrong
 			die( 'invalid secret string' );
 		}
 
-		// for all other cases disable wp-cron.php and spawn_cron() by telling the system it's already running
-		if ( !defined( 'DOING_CRON' ) )
-			define( 'DOING_CRON', true );
-
 		// and also disable the wp_cron() call execution
 		if ( !defined( 'DISABLE_WP_CRON' ) )
 			define( 'DISABLE_WP_CRON', true );
+
 		return false;
 	}
 
-	public function validate_scheduled_posts() {
+	public static function validate_scheduled_posts() {
 		global $wpdb;
 
 		// grab all scheduled posts from posts table
@@ -393,4 +402,3 @@ if ( defined('ABSPATH') ) {
 		}
 	}
 }
-
